@@ -86,7 +86,7 @@ class DataPreprocess(object):
         x.drop(['G1', 'G2', 'G3'], axis=1)
         y = data_set[[which_g]]
 
-        return x, y
+        return x.as_matrix(), y.as_matrix()
 
 
 
