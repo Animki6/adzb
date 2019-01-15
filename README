@@ -1,0 +1,9 @@
+To init virtual environment:
+	* create new environment (named venv):
+		python3 -m venv venv
+
+	* install all dependencies:
+		pip3 install -r requirements.txt
+
+Run: 
+	python3 create_nn.py 
