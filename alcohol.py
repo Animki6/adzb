@@ -3,6 +3,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import math
 
 
 merged_cols = ["school", "sex", "age", "address", "famsize", "Pstatus", "Medu", "Fedu", "Mjob", "Fjob",
@@ -12,9 +13,11 @@ class DataPreprocess(object):
     def __init__(self, file_path: str = None):
         data_por = pd.read_csv("../student-por.csv", sep=",")
         data_mat = pd.read_csv("./student-mat.csv", sep=',')
-        merged = pd.merge(data_por, data_mat, on=merged_cols)
-        # self.__train_set = pd.read_csv(file_path)
-        self.__train_set = merged
+        self.__train_set = pd.merge(data_por, data_mat, on=merged_cols)
+        self.non_numerical_cols = self.__train_set.select_dtypes(include=['object']).keys()
+        self.compare_x_y() # reduces dataset after merge
+        self.compare_non_numeric()
+        self.non_numerical_cols = self.__train_set.select_dtypes(include=['object']).keys()
         self.__new_set = None
         self.__series = []
 
@@ -67,8 +70,14 @@ class DataPreprocess(object):
     def print_new_set(self):
         print(self.__new_set)
 
-    def get_new_set(self):
-        return self.__new_set
+    def get_new_set(self, subject: str = 'por'):
+        por_only_list = [key for key in self.__new_set.keys() if ('_x' in key) and key != 'G3_x']
+        math_only_list = [key for key in self.__new_set.keys() if ('_y' in key) and key != 'G3_y']
+
+        if subject == 'por':
+            return self.__new_set.drop(labels=math_only_list, axis=1)
+        else:
+            return self.__new_set.drop(labels=por_only_list, axis=1)
 
     def parse_values_without_dict(self, column_name):
         new_dict = {}
@@ -87,12 +96,91 @@ class DataPreprocess(object):
         else:
             self.create_new_series_and_map(column_name)
 
-    def perform(self):
+    def merge_to_one(self, new_key: str, key1, key2, keep=None):
+        if keep is None:
+            self.__train_set[new_key] = (self.__train_set[key1]+self.__train_set[key2])/2
+        else:
+            self.__train_set[new_key] = self.__train_set[key1] if keep == 1 else self.__train_set[key2]
 
-        non_numerical_cols = self.__train_set.select_dtypes(include=['object']).keys()
+        self.__train_set = self.__train_set.drop(labels=[key1, key2], axis=1)
 
+
+
+    def compare_x_y(self):
+        # fig, ax = plt.subplots(10, 1)
+        index = 0
+        diff_list = []
         for key in self.__train_set.keys():
-            if key in non_numerical_cols:
+            if key not in self.non_numerical_cols:
+                if ('_' in key) and (key[:-2] not in diff_list) and not('G' in key):
+                    difference = abs(self.__train_set[key[:-1]+'x'] - self.__train_set[key[:-1]+'y'])
+
+                    if sum(difference)/len(difference) < 0.1:
+                        self.merge_to_one(new_key=key[:-2],
+                                          key1=key[:-1]+'x',
+                                          key2=key[:-1]+'y')
+
+                    # ax[index].bar(range(len(difference)), difference)
+                    # ax[index].set_title(key[:-2], loc='right')
+                    index += 1
+                    diff_list.append(key[:-2])
+
+    def compare_non_numeric(self):
+        # fig, ax = plt.subplots(10, 1)
+        index = 0
+        diff_list = []
+        for key in self.__train_set.keys():
+            if key in self.non_numerical_cols:
+                if ('_' in key) and (key[:-2] not in diff_list) and not('G' in key):
+                    difference = self.__train_set[key[:-1]+'x'] != self.__train_set[key[:-1]+'y']
+
+                    if sum(difference.tolist())/len(difference) < 1:
+                        self.merge_to_one(new_key=key[:-2],
+                                          key1=key[:-1]+'x',
+                                          key2=key[:-1]+'y',
+                                          keep=1)
+
+                    # ax[index].bar(range(len(difference)), difference)
+                    # ax[index].set_title(key[:-2], loc='right')
+                    index += 1
+                    diff_list.append(key[:-2])
+
+    def generate_histograms_pre(self, cols=4):
+        num_of_plots = len(self.__train_set.keys()) - len(self.non_numerical_cols)
+
+        fig, ax = plt.subplots(math.ceil(num_of_plots/cols), cols)
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0.8)
+
+        index = 0
+        for key in self.__train_set.keys():
+            if key not in self.non_numerical_cols:
+                current_ax = ax[index // cols][index % cols]
+                # current_ax.set_title(key)
+                sns.distplot(self.__train_set[key], ax=current_ax, kde=True, kde_kws={'bw': 0.55})
+                index += 1
+
+                # sns.countplot(x=key, data=self.__train_set, ax=ax[index//3][index%3])
+
+    def generate_bar_plots_pre(self, cols=4):
+        num_of_plots = len(self.non_numerical_cols)
+
+        fig, ax = plt.subplots(math.ceil(num_of_plots/cols), cols)
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0.8)
+
+        index = 0
+        for key in self.__train_set.keys():
+            if key in self.non_numerical_cols:
+                current_ax = ax[index // cols][index % cols]
+                sns.countplot(x=key, data=self.__train_set, ax=current_ax)
+                index += 1
+
+
+
+    def perform(self):
+        for key in self.__train_set.keys():
+            if key in self.non_numerical_cols:
                 self.parse_values_without_dict(key)
             else:
                 self.value_map(key)
@@ -101,7 +189,7 @@ class DataPreprocess(object):
         self.dataframe_to_csv('whole_set.csv')
 
     @staticmethod
-    def split_x_y(data_set, which_g='G1_x'):
+    def split_x_y(data_set, which_g='G3_x'):
 
         x = data_set[:]
         for key in x.keys():
@@ -111,7 +199,11 @@ class DataPreprocess(object):
 
         return x.as_matrix(), y.as_matrix()
 
-
+    def get_correlation_map(self, pre = True):
+        if pre:
+            sns.heatmap(self.__train_set.corr(), annot=True, fmt=".2f", cbar=True)
+        elif self.__new_set:
+            sns.heatmap(self.__new_set.corr(), annot=True, fmt=".2f", cbar=True)
 
 
 if __name__ == "__main__":
@@ -128,8 +220,10 @@ if __name__ == "__main__":
     # data_por = preprocesor.get_new_set()
     #
     preprocesor = DataPreprocess()
-    preprocesor.perform()
-    merged = preprocesor.get_new_set()
+    preprocesor.get_correlation_map()
+
+    #preprocesor.perform()
+    # merged = preprocesor.get_new_set()
 
 
     # merged = pd.merge(data_por, data_mat,
@@ -137,12 +231,15 @@ if __name__ == "__main__":
     #                       "reason", "nursery", "internet"])
 
 
-    print(merged.shape)
-    with open('merger_dumped', 'w') as f:
-        f.write(merged.to_csv())
+    # print(merged.shape)
+    # with open('merger_dumped', 'w') as f:
+    #     f.write(merged.to_csv())
 
-    plt.figure(figsize=(25, 25))
-    sns.heatmap(merged.corr(), annot=True, fmt=".2f", cbar=True)
+    # plt.figure(figsize=(25, 25))
+    # sns.heatmap(merged.corr(), annot=True, fmt=".2f", cbar=True)
+    # preprocesor.generate_histograms_pre()
+    # preprocesor.generate_bar_plots_pre()
+    # preprocesor.compare_non_numeric()
     plt.show()
 
 
