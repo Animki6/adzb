@@ -9,6 +9,7 @@ import math
 merged_cols = ["school", "sex", "age", "address", "famsize", "Pstatus", "Medu", "Fedu", "Mjob", "Fjob",
                           "reason", "nursery", "internet"]
 
+
 class DataPreprocess(object):
     def __init__(self, file_path: str = None):
         data_por = pd.read_csv("../student-por.csv", sep=",")
@@ -75,9 +76,11 @@ class DataPreprocess(object):
         math_only_list = [key for key in self.__new_set.keys() if ('_y' in key) and key != 'G3_y']
 
         if subject == 'por':
-            return self.__new_set.drop(labels=math_only_list, axis=1)
+            ret_set = self.__new_set.drop(labels=math_only_list, axis=1)
+            return ret_set.drop(labels=['G1_x', 'G2_x'], axis=1)
         else:
-            return self.__new_set.drop(labels=por_only_list, axis=1)
+            ret_set = self.__new_set.drop(labels=por_only_list, axis=1)
+            return ret_set.drop(labels=['G1_y', 'G2_y'], axis=1)
 
     def parse_values_without_dict(self, column_name):
         new_dict = {}
